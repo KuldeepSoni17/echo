@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: echo-server
+    runtime: node
+    rootDir: .
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATABASE_URL
+        fromDatabase:
+          name: echo-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: echo-redis
+          type: redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        value: https://cooltoolsbykul.com
+
+databases:
+  - name: echo-postgres
+    databaseName: echo_db
+    user: echo
+
+  - name: echo-redis
+    type: redis
+    ipAllowList: []
