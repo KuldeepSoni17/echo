@@ -3,11 +3,18 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/echo/index.html" }
+    { "source": "/echo/assets/(.*)", "destination": "/assets/$1" },
+    { "source": "/echo/sw.js", "destination": "/sw.js" },
+    { "source": "/echo/registerSW.js", "destination": "/registerSW.js" },
+    { "source": "/echo/workbox-(.*)", "destination": "/workbox-$1" },
+    { "source": "/echo/manifest.webmanifest", "destination": "/manifest.webmanifest" },
+    { "source": "/echo/(.*)", "destination": "/index.html" },
+    { "source": "/echo", "destination": "/index.html" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
-      "source": "/echo/assets/(.*)",
+      "source": "/assets/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
