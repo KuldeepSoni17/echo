@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '../stores/authStore';
 import { useNotificationStore } from '../stores/notificationStore';
+import { DEMO_TOKEN } from '../mocks/mockApi';
 import type { Notification } from '../types';
 
 let globalSocket: Socket | null = null;
@@ -14,6 +15,9 @@ export function useSocket() {
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
+    // Skip real socket connection in demo mode
+    if (token === DEMO_TOKEN) return;
+
     if (!isAuthenticated || !token) {
       if (globalSocket) {
         globalSocket.disconnect();

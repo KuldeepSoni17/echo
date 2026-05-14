@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../hooks/useAuth';
+import { useAuthStore } from '../../stores/authStore';
+import { DEMO_USER } from '../../mocks/data';
+import { DEMO_TOKEN } from '../../mocks/mockApi';
 
 const COUNTRIES = [
   { code: '+1', flag: '🇺🇸', name: 'US' },
@@ -26,6 +30,13 @@ export function PhoneEntry() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { sendOTP } = useAuth();
+  const setAuth = useAuthStore((s) => s.setAuth);
+  const navigate = useNavigate();
+
+  const handleDemoLogin = () => {
+    setAuth(DEMO_TOKEN, DEMO_USER);
+    navigate('/feed');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,7 +114,26 @@ export function PhoneEntry() {
           </Button>
         </form>
 
-        <p className="text-echo-muted text-xs text-center mt-6">
+        {/* Demo bypass */}
+        <div className="mt-6 flex items-center gap-3">
+          <div className="flex-1 h-px bg-echo-muted/20" />
+          <span className="text-echo-muted text-xs">or</span>
+          <div className="flex-1 h-px bg-echo-muted/20" />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleDemoLogin}
+          className="mt-4 w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl
+            border border-dashed border-echo-accent/40 text-echo-accent text-sm font-medium
+            hover:bg-echo-accent/10 hover:border-echo-accent/70 transition-all duration-200
+            active:scale-[0.98]"
+        >
+          <span className="text-lg">🎧</span>
+          Try Demo — no sign-up needed
+        </button>
+
+        <p className="text-echo-muted text-xs text-center mt-5">
           By continuing, you agree to our Terms of Service and Privacy Policy.
         </p>
       </div>
