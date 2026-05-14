@@ -1,0 +1,258 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MoodTag {
+  CALM
+  EXCITED
+  FUNNY
+  VULNERABLE
+  SERIOUS
+  CURIOUS
+}
+
+enum ReactionType {
+  FIRE
+  HEART
+  LAUGH
+  WOW
+  SAD
+}
+
+enum NotificationType {
+  NEW_ECHO
+  NEW_REPLY
+  NEW_FOLLOWER
+  CHALLENGE_LIVE
+  GHOST_REVEAL
+  STREAK_REMINDER
+  ROOM_STARTED
+}
+
+enum TargetType {
+  POST
+  COMMENT
+  USER
+}
+
+enum ReportReason {
+  HATE_SPEECH
+  HARASSMENT
+  SPAM
+  SELF_HARM
+  MISINFORMATION
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  ACTIONED
+  DISMISSED
+}
+
+model User {
+  id               String    @id @default(uuid())
+  phoneNumber      String    @unique
+  username         String    @unique
+  displayName      String
+  avatarColor      String
+  voiceFingerprint Json?
+  isVerified       Boolean   @default(false)
+  isBanned         Boolean   @default(false)
+  isAdmin          Boolean   @default(false)
+  streakCount      Int       @default(0)
+  lastPostedAt     DateTime?
+  timezone         String    @default("UTC")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  posts                 Post[]         @relation("AuthorPosts")
+  comments              Comment[]
+  reactions             Reaction[]
+  following             Follow[]       @relation("Follower")
+  followers             Follow[]       @relation("Following")
+  sentNotifications     Notification[] @relation("ActorNotifications")
+  receivedNotifications Notification[] @relation("RecipientNotifications")
+  reports               Report[]       @relation("ReporterReports")
+  reviewedReports       Report[]       @relation("ReviewerReports")
+  hostedRooms           Room[]
+  blocksInitiated       Block[]        @relation("Blocker")
+  blocksReceived        Block[]        @relation("Blocked")
+}
+
+model Post {
+  id              String    @id @default(uuid())
+  authorId        String
+  audioUrl        String
+  audioDuration   Float
+  waveformPeaks   Json      @default("[]")
+  transcription   String?
+  moodTag         MoodTag
+  isAnonymous     Boolean   @default(false)
+  isGhostRevealed Boolean   @default(false)
+  parentEchoId    String?
+  challengeId     String?
+  playCount       Int       @default(0)
+  echoCount       Int       @default(0)
+  replyCount      Int       @default(0)
+  isDeleted       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+
+  author      User       @relation("AuthorPosts", fields: [authorId], references: [id])
+  parentEcho  Post?      @relation("EchoChain", fields: [parentEchoId], references: [id])
+  echoReplies Post[]     @relation("EchoChain")
+  challenge   Challenge? @relation(fields: [challengeId], references: [id])
+  comments    Comment[]
+  reactions   Reaction[]
+  echoRecord  Echo?      @relation("EchoPost")
+  originalEchos Echo[]   @relation("OriginalPost")
+  notifications Notification[]
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@index([challengeId])
+}
+
+model Comment {
+  id            String   @id @default(uuid())
+  postId        String
+  authorId      String
+  audioUrl      String
+  audioDuration Float
+  waveformPeaks Json     @default("[]")
+  isAnonymous   Boolean  @default(false)
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  post   Post @relation(fields: [postId], references: [id])
+  author User @relation(fields: [authorId], references: [id])
+
+  @@index([postId])
+}
+
+model Reaction {
+  id        String       @id @default(uuid())
+  postId    String
+  userId    String
+  type      ReactionType
+  createdAt DateTime     @default(now())
+
+  post Post @relation(fields: [postId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([postId, userId])
+  @@index([postId])
+}
+
+model Echo {
+  id             String   @id @default(uuid())
+  originalPostId String
+  echoPostId     String   @unique
+  echoDuration   Float
+  overlayStartMs Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  originalPost Post @relation("OriginalPost", fields: [originalPostId], references: [id])
+  echoPost     Post @relation("EchoPost", fields: [echoPostId], references: [id])
+}
+
+model Follow {
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("Follower", fields: [followerId], references: [id])
+  following User @relation("Following", fields: [followingId], references: [id])
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+}
+
+model Challenge {
+  id             String   @id @default(uuid())
+  promptAudioUrl String
+  title          String   @db.VarChar(100)
+  startsAt       DateTime
+  endsAt         DateTime
+  entryCount     Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  entries Post[]
+}
+
+model Room {
+  id            String    @id @default(uuid())
+  hostId        String
+  title         String    @db.VarChar(100)
+  isLive        Boolean   @default(true)
+  listenerCount Int       @default(0)
+  speakerQueue  Json      @default("[]")
+  createdAt     DateTime  @default(now())
+  endedAt       DateTime?
+
+  host User @relation(fields: [hostId], references: [id])
+
+  @@index([isLive])
+}
+
+model Notification {
+  id          String           @id @default(uuid())
+  recipientId String
+  type        NotificationType
+  actorId     String?
+  postId      String?
+  isRead      Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+
+  recipient User  @relation("RecipientNotifications", fields: [recipientId], references: [id])
+  actor     User? @relation("ActorNotifications", fields: [actorId], references: [id])
+  post      Post? @relation(fields: [postId], references: [id])
+
+  @@index([recipientId, isRead])
+}
+
+model Report {
+  id          String       @id @default(uuid())
+  reporterId  String
+  targetType  TargetType
+  targetId    String
+  reason      ReportReason
+  description String?
+  status      ReportStatus @default(PENDING)
+  reviewedBy  String?
+  createdAt   DateTime     @default(now())
+
+  reporter User  @relation("ReporterReports", fields: [reporterId], references: [id])
+  reviewer User? @relation("ReviewerReports", fields: [reviewedBy], references: [id])
+
+  @@index([status])
+}
+
+model Block {
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id])
+  blocked User @relation("Blocked", fields: [blockedId], references: [id])
+
+  @@id([blockerId, blockedId])
+}
+
+model OTPCode {
+  id          String   @id @default(uuid())
+  phoneNumber String
+  code        String
+  attempts    Int      @default(0)
+  expiresAt   DateTime
+  isUsed      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([phoneNumber])
+}
