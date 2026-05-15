@@ -35,7 +35,7 @@ export function ChallengeCard({ challenge, onJoin }: ChallengeCardProps) {
           audioUrl={challenge.promptAudioUrl}
           peaks={challenge.promptWaveformPeaks}
           color="#FF5C8A"
-          compact
+         
         />
       </div>
 
@@ -51,7 +51,7 @@ export function ChallengeCard({ challenge, onJoin }: ChallengeCardProps) {
                   audioUrl={entry.presignedAudioUrl ?? entry.audioUrl}
                   peaks={entry.waveformPeaks}
                   color="#7C5CFF"
-                  compact
+                 
                 />
               </div>
             ))}

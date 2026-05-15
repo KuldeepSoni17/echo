@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useWaveform } from '../../hooks/useWaveform';
 import { formatDuration } from '../../utils/formatDuration';
 
@@ -11,78 +11,132 @@ interface WaveformPlayerProps {
   onPlay?: () => void;
   onPause?: () => void;
   onEnd?: () => void;
-  compact?: boolean;
+}
+
+/* ─── Static bar renderer (used when no real audio) ─────────── */
+function StaticBars({ peaks, color, progress }: { peaks: number[]; color: string; progress: number }) {
+  const bars = peaks.length > 0 ? peaks : Array.from({ length: 60 }, (_, i) =>
+    Math.abs(Math.sin(i * 0.4) * 0.5 + Math.sin(i * 0.15) * 0.3 + 0.15)
+  );
+  const filled = Math.round(progress * bars.length);
+
+  return (
+    <div className="flex items-center gap-[2px] h-10 w-full">
+      {bars.map((v, i) => (
+        <div
+          key={i}
+          className="flex-1 rounded-full transition-all duration-75"
+          style={{
+            height: `${Math.max(15, Math.min(100, v * 100))}%`,
+            background: i < filled ? color : 'rgba(255,255,255,0.1)',
+            opacity: i < filled ? 1 : 0.6,
+          }}
+        />
+      ))}
+    </div>
+  );
 }
 
 export function WaveformPlayer({
   audioUrl,
-  peaks,
+  peaks = [],
   color = '#7C5CFF',
   duration: propDuration,
   autoPlay = false,
   onPlay,
   onPause,
   onEnd,
-  compact = false,
 }: WaveformPlayerProps) {
+  const hasRealAudio = audioUrl.startsWith('http') || audioUrl.startsWith('blob');
   const { containerRef, isPlaying, currentTime, duration, play, pause, isReady } = useWaveform({
-    audioUrl,
+    audioUrl: hasRealAudio ? audioUrl : '',
     peaks,
     color,
     onFinish: onEnd,
   });
 
+  // Demo-mode playback simulation
+  const [demoTime, setDemoTime] = useState(0);
+  const [demoPlaying, setDemoPlaying] = useState(false);
+  const totalDuration = duration > 0 ? duration : (propDuration ?? 0);
+
   useEffect(() => {
-    if (autoPlay && isReady) {
-      play();
+    if (!hasRealAudio && demoPlaying) {
+      const interval = setInterval(() => {
+        setDemoTime(t => {
+          if (t >= totalDuration) { setDemoPlaying(false); onEnd?.(); return 0; }
+          return t + 0.1;
+        });
+      }, 100);
+      return () => clearInterval(interval);
     }
-  }, [autoPlay, isReady, play]);
+  }, [hasRealAudio, demoPlaying, totalDuration, onEnd]);
+
+  useEffect(() => {
+    if (autoPlay && isReady && hasRealAudio) play();
+  }, [autoPlay, isReady, play, hasRealAudio]);
+
+  const isCurrentlyPlaying = hasRealAudio ? isPlaying : demoPlaying;
+  const currentDisplayTime = hasRealAudio ? currentTime : demoTime;
+  const progress = totalDuration > 0 ? currentDisplayTime / totalDuration : 0;
 
   const handleToggle = () => {
-    if (isPlaying) {
-      pause();
-      onPause?.();
+    if (hasRealAudio) {
+      if (isPlaying) { pause(); onPause?.(); } else { play(); onPlay?.(); }
     } else {
-      play();
-      onPlay?.();
+      if (demoPlaying) { setDemoPlaying(false); onPause?.(); }
+      else { setDemoPlaying(true); onPlay?.(); }
     }
   };
 
-  const displayDuration = duration > 0 ? duration : (propDuration ?? 0);
-
   return (
-    <div className={`flex items-center gap-3 ${compact ? '' : 'w-full'}`}>
-      {/* Play/Pause button */}
+    <div className="flex items-center gap-3 w-full">
+
+      {/* Play / Pause button */}
       <button
         onClick={handleToggle}
-        disabled={!isReady}
-        className={`flex-shrink-0 flex items-center justify-center rounded-full bg-echo-accent
-          hover:bg-purple-500 active:scale-95 transition-all duration-200
-          disabled:opacity-50 disabled:cursor-not-allowed
-          ${compact ? 'w-9 h-9' : 'w-11 h-11'}`}
-        aria-label={isPlaying ? 'Pause' : 'Play'}
+        disabled={hasRealAudio && !isReady}
+        className="relative flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center
+          transition-all duration-200 active:scale-90 disabled:opacity-40"
+        style={{
+          background: `linear-gradient(135deg, ${color}ee, ${color}99)`,
+          boxShadow: isCurrentlyPlaying ? `0 0 18px ${color}55` : 'none',
+        }}
+        aria-label={isCurrentlyPlaying ? 'Pause' : 'Play'}
       >
-        {isPlaying ? (
-          <svg className={compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} fill="white" viewBox="0 0 24 24">
-            <rect x="6" y="4" width="4" height="16" rx="1" />
-            <rect x="14" y="4" width="4" height="16" rx="1" />
+        {isCurrentlyPlaying ? (
+          <svg width="14" height="14" fill="white" viewBox="0 0 24 24">
+            <rect x="5" y="3" width="5" height="18" rx="1.5" />
+            <rect x="14" y="3" width="5" height="18" rx="1.5" />
           </svg>
         ) : (
-          <svg className={compact ? 'w-3.5 h-3.5' : 'w-4 h-4'} fill="white" viewBox="0 0 24 24">
-            <polygon points="5,3 19,12 5,21" />
+          <svg width="14" height="14" fill="white" viewBox="0 0 24 24" style={{ marginLeft: 2 }}>
+            <polygon points="5,3 20,12 5,21" />
           </svg>
+        )}
+
+        {/* Pulse ring when playing */}
+        {isCurrentlyPlaying && (
+          <span className="absolute inset-0 rounded-full animate-pulse-ring"
+            style={{ background: color, opacity: 0.25 }} />
         )}
       </button>
 
-      {/* Waveform + time */}
-      <div className="flex-1 min-w-0">
-        <div
-          ref={containerRef}
-          className={`w-full ${compact ? 'h-8' : 'h-12'} ${!isReady ? 'opacity-40' : ''}`}
-        />
-        <div className="flex justify-between text-xs text-echo-muted mt-0.5">
-          <span>{formatDuration(currentTime)}</span>
-          <span>{formatDuration(displayDuration)}</span>
+      {/* Waveform + times */}
+      <div className="flex-1 min-w-0 space-y-1.5">
+        {hasRealAudio ? (
+          <div ref={containerRef} className="wavesurfer-wrapper h-10 w-full" />
+        ) : (
+          <StaticBars peaks={peaks} color={color} progress={progress} />
+        )}
+
+        <div className="flex justify-between items-center">
+          <span className="text-[11px] font-mono text-echo-muted tabular-nums">
+            {formatDuration(currentDisplayTime)}
+          </span>
+          <span className="text-[11px] font-mono text-echo-muted tabular-nums">
+            {formatDuration(totalDuration)}
+          </span>
         </div>
       </div>
     </div>
